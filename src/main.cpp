@@ -18,6 +18,164 @@ uint16_t avg = 0;
 int exposureTime = 10
 ;
 
+ADC_HandleTypeDef AdcHandle = {};
+ADC_ChannelConfTypeDef  AdcChannelConf = {};
+
+static uint32_t get_adc_internal_channel(PinName pin)
+{
+  uint32_t channel = 0;
+  switch (pin) {
+#if defined(ADC_CHANNEL_TEMPSENSOR)
+    case PADC_TEMP:
+      channel = ADC_CHANNEL_TEMPSENSOR;
+      break;
+#endif
+#if defined(ADC_CHANNEL_TEMPSENSOR_ADC1)
+    case PADC_TEMP:
+      channel = ADC_CHANNEL_TEMPSENSOR_ADC1;
+      break;
+#endif
+#if defined(ADC5) && defined(ADC_CHANNEL_TEMPSENSOR_ADC5)
+    case PADC_TEMP_ADC5:
+      channel = ADC_CHANNEL_TEMPSENSOR_ADC5;
+      break;
+#endif
+#ifdef ADC_CHANNEL_VREFINT
+    case PADC_VREF:
+      channel = ADC_CHANNEL_VREFINT;
+      break;
+#endif
+#ifdef ADC_CHANNEL_VBAT
+    case PADC_VBAT:
+      channel = ADC_CHANNEL_VBAT;
+      break;
+#endif
+    default:
+      channel = 0;
+      break;
+  }
+  return channel;
+}
+
+static uint32_t get_adc_channel(PinName pin)
+{
+  uint32_t function = pinmap_function(pin, PinMap_ADC);
+  uint32_t channel = 0;
+  switch (STM_PIN_CHANNEL(function)) {
+#ifdef ADC_CHANNEL_0
+    case 0:
+      channel = ADC_CHANNEL_0;
+      break;
+#endif
+    case 1:
+      channel = ADC_CHANNEL_1;
+      break;
+    case 2:
+      channel = ADC_CHANNEL_2;
+      break;
+    case 3:
+      channel = ADC_CHANNEL_3;
+      break;
+    case 4:
+      channel = ADC_CHANNEL_4;
+      break;
+    case 5:
+      channel = ADC_CHANNEL_5;
+      break;
+    case 6:
+      channel = ADC_CHANNEL_6;
+      break;
+    case 7:
+      channel = ADC_CHANNEL_7;
+      break;
+    case 8:
+      channel = ADC_CHANNEL_8;
+      break;
+    case 9:
+      channel = ADC_CHANNEL_9;
+      break;
+    case 10:
+      channel = ADC_CHANNEL_10;
+      break;
+    case 11:
+      channel = ADC_CHANNEL_11;
+      break;
+    case 12:
+      channel = ADC_CHANNEL_12;
+      break;
+    case 13:
+      channel = ADC_CHANNEL_13;
+      break;
+    case 14:
+      channel = ADC_CHANNEL_14;
+      break;
+    case 15:
+      channel = ADC_CHANNEL_15;
+      break;
+#ifdef ADC_CHANNEL_16
+    case 16:
+      channel = ADC_CHANNEL_16;
+      break;
+#endif
+    case 17:
+      channel = ADC_CHANNEL_17;
+      break;
+#ifdef ADC_CHANNEL_18
+    case 18:
+      channel = ADC_CHANNEL_18;
+      break;
+#endif
+#ifdef ADC_CHANNEL_19
+    case 19:
+      channel = ADC_CHANNEL_19;
+      break;
+#endif
+#ifdef ADC_CHANNEL_20
+    case 20:
+      channel = ADC_CHANNEL_20;
+      break;
+    case 21:
+      channel = ADC_CHANNEL_21;
+      break;
+    case 22:
+      channel = ADC_CHANNEL_22;
+      break;
+    case 23:
+      channel = ADC_CHANNEL_23;
+      break;
+    case 24:
+      channel = ADC_CHANNEL_24;
+      break;
+    case 25:
+      channel = ADC_CHANNEL_25;
+      break;
+    case 26:
+      channel = ADC_CHANNEL_26;
+      break;
+#ifdef ADC_CHANNEL_27
+    case 27:
+      channel = ADC_CHANNEL_27;
+      break;
+    case 28:
+      channel = ADC_CHANNEL_28;
+      break;
+    case 29:
+      channel = ADC_CHANNEL_29;
+      break;
+    case 30:
+      channel = ADC_CHANNEL_30;
+      break;
+    case 31:
+      channel = ADC_CHANNEL_31;
+      break;
+#endif
+#endif
+    default:
+      channel = 0;
+      break;
+  }
+  return channel;
+}
 
 void setup()
 {
@@ -26,38 +184,206 @@ void setup()
 
   analogWrite(CLK_PIN, 50);
 
-  PinName p = digitalPinToPinName(CLK_PIN);
+  PinName clkPin = digitalPinToPinName(CLK_PIN);
 
-  TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(p, PinMap_PWM);
+  TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(clkPin, PinMap_PWM);
   HardwareTimer *HT;
   uint32_t index = get_timer_index(Instance);
   if (HardwareTimer_Handle[index] == NULL) 
   {
-    HardwareTimer_Handle[index]->__this = new HardwareTimer((TIM_TypeDef *)pinmap_peripheral(p, PinMap_PWM));
+    HardwareTimer_Handle[index]->__this = new HardwareTimer((TIM_TypeDef *)pinmap_peripheral(clkPin, PinMap_PWM));
   }
 
   HT = (HardwareTimer *)(HardwareTimer_Handle[index]->__this);
 
-  uint32_t channel = STM_PIN_CHANNEL(pinmap_function(p, PinMap_PWM));
+  uint32_t clkChannel = STM_PIN_CHANNEL(pinmap_function(clkPin, PinMap_PWM));
 
   HT->setPrescaleFactor(1);
-  HT->setMode(channel, TIMER_OUTPUT_COMPARE_PWM1, p);
+  HT->setMode(clkChannel, TIMER_OUTPUT_COMPARE_PWM1, clkPin);
   HT->setOverflow(100, TICK_FORMAT);
-  HT->setCaptureCompare(channel, 50, TICK_COMPARE_FORMAT);
+  HT->setCaptureCompare(clkChannel, 50, TICK_COMPARE_FORMAT);
   HT->resume();
-
-  // timer_dev *t_dev = PIN_MAP[CLK_PIN].timer_device;
-  // uint8_t cc_channel = PIN_MAP[CLK_PIN].timer_channel;
-
-  // timer_set_prescaler(t_dev, (uint16_t)(0));
-  // timer_set_reload(t_dev, 100);
-  // timer_set_compare(t_dev, cc_channel, 50);
-
-  // adc_set_prescaler(ADC_PRE_PCLK2_DIV_2);
-  // adc_set_sample_rate(ADC1, ADC_SMPR_7_5);
 
   pinMode(PC14, OUTPUT);
   pinMode(PC15, OUTPUT);
+
+  PinName adcPin = analogInputToPinName(ADC_PIN);
+
+  uint32_t samplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  uint32_t adcChannel = 0;
+
+  if (adcPin & PADC_BASE) {
+#if defined(STM32H7xx)
+    AdcHandle.Instance = ADC3;
+#else
+    AdcHandle.Instance = ADC1;
+#if defined(ADC5) && defined(ADC_CHANNEL_TEMPSENSOR_ADC5)
+    if (adcPin == PADC_TEMP_ADC5) {
+      AdcHandle.Instance = ADC5;
+    }
+#endif
+#endif
+    adcChannel = get_adc_internal_channel(adcPin);
+    samplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  } else {
+    AdcHandle.Instance = (ADC_TypeDef *)pinmap_peripheral(adcPin, PinMap_ADC);
+    adcChannel = get_adc_channel(adcPin);
+  }
+
+  if (AdcHandle.Instance == NP) {
+    return;
+  }
+
+#ifdef ADC_CLOCK_DIV
+  AdcHandle.Init.ClockPrescaler        = ADC_CLOCK_DIV;                 /* (A)synchronous clock mode, input ADC clock divided */
+#endif
+#ifdef ADC_RESOLUTION_12B
+  AdcHandle.Init.Resolution            = ADC_RESOLUTION_12B;            /* 12-bit resolution for converted data */
+#endif
+#ifdef ADC_DATAALIGN_RIGHT
+  AdcHandle.Init.DataAlign             = ADC_DATAALIGN_RIGHT;           /* Right-alignment for converted data */
+#endif
+  AdcHandle.Init.ScanConvMode          = DISABLE;                       /* Sequencer disabled (ADC conversion on only 1 channel: channel set on rank 1) */
+#ifdef ADC_EOC_SINGLE_CONV
+  AdcHandle.Init.EOCSelection          = ADC_EOC_SINGLE_CONV;           /* EOC flag picked-up to indicate conversion end */
+#endif
+#if !defined(STM32F1xx) && !defined(STM32F2xx) && !defined(STM32F4xx) && \
+    !defined(STM32F7xx) && !defined(STM32F373xC) && !defined(STM32F378xx)
+  AdcHandle.Init.LowPowerAutoWait      = DISABLE;                       /* Auto-delayed conversion feature disabled */
+#endif
+#if !defined(STM32F1xx) && !defined(STM32F2xx) && !defined(STM32F3xx) && \
+    !defined(STM32F4xx) && !defined(STM32F7xx) && !defined(STM32G4xx) && \
+    !defined(STM32H7xx) && !defined(STM32L4xx) && !defined(STM32WBxx)
+  AdcHandle.Init.LowPowerAutoPowerOff  = DISABLE;                       /* ADC automatically powers-off after a conversion and automatically wakes-up when a new conversion is triggered */
+#endif
+#ifdef ADC_CHANNELS_BANK_A
+  AdcHandle.Init.ChannelsBank          = ADC_CHANNELS_BANK_A;
+#endif
+  AdcHandle.Init.ContinuousConvMode    = DISABLE;                       /* Continuous mode disabled to have only 1 conversion at each conversion trig */
+#if !defined(STM32F0xx) && !defined(STM32L0xx)
+  AdcHandle.Init.NbrOfConversion       = 1;                             /* Specifies the number of ranks that will be converted within the regular group sequencer. */
+#endif
+  AdcHandle.Init.DiscontinuousConvMode = DISABLE;                       /* Parameter discarded because sequencer is disabled */
+#if !defined(STM32F0xx) && !defined(STM32G0xx) && !defined(STM32L0xx)
+  AdcHandle.Init.NbrOfDiscConversion   = 0;                             /* Parameter discarded because sequencer is disabled */
+#endif
+  AdcHandle.Init.ExternalTrigConv      = ADC_SOFTWARE_START;            /* Software start to trig the 1st conversion manually, without external event */
+#if !defined(STM32F1xx)
+  AdcHandle.Init.ExternalTrigConvEdge  = ADC_EXTERNALTRIGCONVEDGE_NONE; /* Parameter discarded because software trigger chosen */
+#endif
+#if !defined(STM32F1xx) && !defined(STM32H7xx) && \
+    !defined(STM32F373xC) && !defined(STM32F378xx)
+  AdcHandle.Init.DMAContinuousRequests = DISABLE;                       /* DMA one-shot mode selected (not applied to this example) */
+#endif
+#ifdef ADC_CONVERSIONDATA_DR
+  AdcHandle.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;      /* Regular Conversion data stored in DR register only */
+#endif
+#ifdef ADC_OVR_DATA_OVERWRITTEN
+  AdcHandle.Init.Overrun               = ADC_OVR_DATA_OVERWRITTEN;      /* DR register is overwritten with the last conversion result in case of overrun */
+#endif
+#ifdef ADC_LEFTBITSHIFT_NONE
+  AdcHandle.Init.LeftBitShift          = ADC_LEFTBITSHIFT_NONE;         /* No bit shift left applied on the final ADC convesion data */
+#endif
+
+#if defined(STM32F0xx)
+  AdcHandle.Init.SamplingTimeCommon    = samplingTime;
+#endif
+#if defined(STM32G0xx)
+  AdcHandle.Init.SamplingTimeCommon1   = samplingTime;              /* Set sampling time common to a group of channels. */
+  AdcHandle.Init.SamplingTimeCommon2   = samplingTime;              /* Set sampling time common to a group of channels, second common setting possible.*/
+  AdcHandle.Init.TriggerFrequencyMode  = ADC_TRIGGER_FREQ_HIGH;
+#endif
+#if defined(STM32L0xx)
+  AdcHandle.Init.LowPowerFrequencyMode = DISABLE;                       /* To be enabled only if ADC clock < 2.8 MHz */
+  AdcHandle.Init.SamplingTime          = samplingTime;
+#endif
+#if !defined(STM32F0xx) && !defined(STM32F1xx) && !defined(STM32F2xx) && \
+    !defined(STM32F3xx) && !defined(STM32F4xx) && !defined(STM32F7xx) && \
+    !defined(STM32L1xx)
+  AdcHandle.Init.OversamplingMode      = DISABLE;
+  /* AdcHandle.Init.Oversample ignore for STM32L0xx as oversampling disabled */
+  /* AdcHandle.Init.Oversampling ignored for other as oversampling disabled */
+#endif
+#if defined(ADC_CFGR_DFSDMCFG) && defined(DFSDM1_Channel0)
+  AdcHandle.Init.DFSDMConfig           = ADC_DFSDM_MODE_DISABLE;        /* ADC conversions are not transferred by DFSDM. */
+#endif
+#ifdef ADC_TRIGGER_FREQ_HIGH
+  AdcHandle.Init.TriggerFrequencyMode  = ADC_TRIGGER_FREQ_HIGH;
+#endif
+
+  AdcHandle.State = HAL_ADC_STATE_RESET;
+  AdcHandle.DMA_Handle = NULL;
+  AdcHandle.Lock = HAL_UNLOCKED;
+  /* Some other ADC_HandleTypeDef fields exists but not required */
+
+  // g_current_pin = pin; /* Needed for HAL_ADC_MspInit*/
+
+  if (HAL_ADC_Init(&AdcHandle) != HAL_OK) {
+    return;
+  }
+
+  AdcChannelConf.Channel      = adcChannel;                          /* Specifies the channel to configure into ADC */
+
+#if defined(STM32L4xx) || defined(STM32WBxx)
+  if (!IS_ADC_CHANNEL(&AdcHandle, AdcChannelConf.Channel)) {
+#elif defined(STM32G4xx)
+  if (!IS_ADC_CHANNEL(&AdcHandle, AdcChannelConf.Channel)) {
+#else
+  if (!IS_ADC_CHANNEL(AdcChannelConf.Channel)) {
+#endif /* STM32L4xx || STM32WBxx */
+    return;
+  }
+  AdcChannelConf.Rank         = ADC_REGULAR_RANK_1;               /* Specifies the rank in the regular group sequencer */
+#if !defined(STM32L0xx)
+#if !defined(STM32G0xx)
+  AdcChannelConf.SamplingTime = samplingTime;                     /* Sampling time value to be set for the selected channel */
+#else
+  AdcChannelConf.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;        /* Sampling time value to be set for the selected channel */
+#endif
+#endif
+#if !defined(STM32F0xx) && !defined(STM32F1xx) && !defined(STM32F2xx) && \
+    !defined(STM32F4xx) && !defined(STM32F7xx) && !defined(STM32G0xx) && \
+    !defined(STM32L0xx) && !defined(STM32L1xx) && \
+    !defined(STM32F373xC) && !defined(STM32F378xx)
+  AdcChannelConf.SingleDiff   = ADC_SINGLE_ENDED;                 /* Single-ended input channel */
+  AdcChannelConf.OffsetNumber = ADC_OFFSET_NONE;                  /* No offset subtraction */
+#endif
+#if !defined(STM32F0xx) && !defined(STM32F1xx) && !defined(STM32F2xx) && \
+    !defined(STM32G0xx) && !defined(STM32L0xx) && !defined(STM32L1xx) && \
+    !defined(STM32WBxx) && !defined(STM32F373xC) && !defined(STM32F378xx)
+  AdcChannelConf.Offset = 0;                                      /* Parameter discarded because offset correction is disabled */
+#endif
+#if defined (STM32H7xx)
+  AdcChannelConf.OffsetRightShift = DISABLE;                      /* No Right Offset Shift */
+  AdcChannelConf.OffsetSignedSaturation = DISABLE;                /* Signed saturation feature is not used */
+#endif
+
+  /*##-2- Configure ADC regular channel ######################################*/
+  if (HAL_ADC_ConfigChannel(&AdcHandle, &AdcChannelConf) != HAL_OK) {
+    /* Channel Configuration Error */
+    return;
+  }
+
+#if defined(STM32F0xx) || defined(STM32F1xx) || defined(STM32F3xx) || \
+    defined(STM32G0xx) || defined(STM32G4xx) || defined(STM32H7xx) || \
+    defined(STM32L0xx) || defined(STM32L4xx) || defined(STM32WBxx)
+  /*##-2.1- Calibrate ADC then Start the conversion process ####################*/
+#if defined(STM32F0xx) || defined(STM32G0xx) || defined(STM32F1xx) || \
+    defined(STM32F373xC) || defined(STM32F378xx)
+  if (HAL_ADCEx_Calibration_Start(&AdcHandle) !=  HAL_OK)
+#elif defined (STM32H7xx)
+  if (HAL_ADCEx_Calibration_Start(&AdcHandle, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED) != HAL_OK)
+#else
+  if (HAL_ADCEx_Calibration_Start(&AdcHandle, ADC_SINGLE_ENDED) !=  HAL_OK)
+#endif
+  {
+    /* ADC Calibration Error */
+    return;
+  }
+#endif
+
+
+
 }
 
 void readCCD(void)
@@ -102,17 +428,58 @@ unsigned long copyTimer = 0;
 
 void loop()
 {
-  if (millis() - copyTimer > 2000)
-  {
-    for (int i = 0; i< 36; ++i)
-    {
-      buffer2[i] = buffer[i*100];
-    }
-    copyTimer = millis();
+  // if (millis() - copyTimer > 2000)
+  // {
+  //   for (int i = 0; i< 36; ++i)
+  //   {
+  //     buffer2[i] = buffer[i*100];
+  //   }
+  //   copyTimer = millis();
+  // }
+
+  // readCCD();
+  //delay(exposureTime);
+
+      BITSET_SH;
+
+
+
+
+  __IO uint16_t uhADCxConvertedValue = 0;
+  /*##-3- Start the conversion process ####################*/
+  if (HAL_ADC_Start(&AdcHandle) != HAL_OK) {
+    /* Start Conversation Error */
+    return;
   }
 
-  readCCD();
-  delay(exposureTime);
+  /*##-4- Wait for the end of conversion #####################################*/
+  /*  For simplicity reasons, this example is just waiting till the end of the
+      conversion, but application may perform other tasks while conversion
+      operation is ongoing. */
+  if (HAL_ADC_PollForConversion(&AdcHandle, 10) != HAL_OK) {
+    /* End Of Conversion flag not set on time */
+    return;
+  }
 
-  
+  /* Check if the continous conversion of regular channel is finished */
+  if ((HAL_ADC_GetState(&AdcHandle) & HAL_ADC_STATE_REG_EOC) == HAL_ADC_STATE_REG_EOC) {
+    /*##-5- Get the converted value of regular channel  ########################*/
+    uhADCxConvertedValue = HAL_ADC_GetValue(&AdcHandle);
+  }
+
+  if (HAL_ADC_Stop(&AdcHandle) != HAL_OK) {
+    /* Stop Conversation Error */
+    return;
+  }
+
+  // if (HAL_ADC_DeInit(&AdcHandle) != HAL_OK) {
+  //   return;
+  // }
+
+  // LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(AdcHandle.Instance), LL_ADC_PATH_INTERNAL_NONE);
+
+  // return uhADCxConvertedValue;
+
+    //uint16_t result = analogRead(ADC_PIN);
+    BITCLR_SH;
 }
