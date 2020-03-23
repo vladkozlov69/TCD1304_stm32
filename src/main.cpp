@@ -26,9 +26,9 @@ void setup()
   pinMode(ADC_PIN, WiringPinMode::INPUT_ANALOG);
 
   timer_dev *t_dev = PIN_MAP[CLK_PIN].timer_device;
-  uint8 cc_channel = PIN_MAP[CLK_PIN].timer_channel;
+  uint8_t cc_channel = PIN_MAP[CLK_PIN].timer_channel;
 
-  timer_set_prescaler(t_dev, (uint16)(0));
+  timer_set_prescaler(t_dev, (uint16_t)(0));
   timer_set_reload(t_dev, 100);
   timer_set_compare(t_dev, cc_channel, 50);
 
@@ -65,7 +65,7 @@ void readCCD(void)
 	  adc_regs->CR2 |= ADC_CR2_SWSTART;
 	  while (!(adc_regs->SR & ADC_SR_EOC))
             ;
-	  result = (uint16)(adc_regs->DR & ADC_DR_DATA);
+	  result = (uint16_t)(adc_regs->DR & ADC_DR_DATA);
 
     // if (x == 0)
     // {
