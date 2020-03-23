@@ -1,10 +1,9 @@
 #include <Arduino.h>
 
-#define SH 0b1000000000000000 // PC15
-#define ICG 0b0100000000000000 // PC14
-
-#define BITSET(mask) GPIOC->regs->BSRR = mask
-#define BITCLR(mask) GPIOC->regs->BRR = mask
+#define BITSET_SH (GPIOC->BSRR = GPIO_BSRR_BS15);
+#define BITCLR_SH (GPIOC->BSRR = GPIO_BSRR_BR15);
+#define BITSET_ICG (GPIOC->BSRR = GPIO_BSRR_BS14);
+#define BITCLR_ICG (GPIOC->BSRR = GPIO_BSRR_BR14);
 
 #define ADC_PIN PA7
 #define CLK_PIN PA8
@@ -22,72 +21,77 @@ int exposureTime = 10
 
 void setup()
 {
-  pinMode(CLK_PIN, WiringPinMode::PWM);
-  pinMode(ADC_PIN, WiringPinMode::INPUT_ANALOG);
+  pinMode(CLK_PIN, OUTPUT);
+  pinMode(ADC_PIN, INPUT_ANALOG);
 
-  timer_dev *t_dev = PIN_MAP[CLK_PIN].timer_device;
-  uint8_t cc_channel = PIN_MAP[CLK_PIN].timer_channel;
+  analogWrite(CLK_PIN, 50);
 
-  timer_set_prescaler(t_dev, (uint16_t)(0));
-  timer_set_reload(t_dev, 100);
-  timer_set_compare(t_dev, cc_channel, 50);
+  PinName p = digitalPinToPinName(CLK_PIN);
 
-  adc_set_prescaler(ADC_PRE_PCLK2_DIV_2);
-  adc_set_sample_rate(ADC1, ADC_SMPR_7_5);
+  TIM_TypeDef *Instance = (TIM_TypeDef *)pinmap_peripheral(p, PinMap_PWM);
+  HardwareTimer *HT;
+  uint32_t index = get_timer_index(Instance);
+  if (HardwareTimer_Handle[index] == NULL) 
+  {
+    HardwareTimer_Handle[index]->__this = new HardwareTimer((TIM_TypeDef *)pinmap_peripheral(p, PinMap_PWM));
+  }
 
-  GPIOC->regs->CRL = 0x00000000;
-  GPIOC->regs->CRH = 0x33300000;
+  HT = (HardwareTimer *)(HardwareTimer_Handle[index]->__this);
+
+  uint32_t channel = STM_PIN_CHANNEL(pinmap_function(p, PinMap_PWM));
+
+  HT->setMode(channel, TIMER_OUTPUT_COMPARE_PWM1, p);
+  HT->setOverflow(100, TICK_FORMAT);
+  HT->setCaptureCompare(channel, 50, TICK_COMPARE_FORMAT);
+  HT->resume();
+
+  // timer_dev *t_dev = PIN_MAP[CLK_PIN].timer_device;
+  // uint8_t cc_channel = PIN_MAP[CLK_PIN].timer_channel;
+
+  // timer_set_prescaler(t_dev, (uint16_t)(0));
+  // timer_set_reload(t_dev, 100);
+  // timer_set_compare(t_dev, cc_channel, 50);
+
+  // adc_set_prescaler(ADC_PRE_PCLK2_DIV_2);
+  // adc_set_sample_rate(ADC1, ADC_SMPR_7_5);
+
+  pinMode(PC14, OUTPUT);
+  pinMode(PC15, OUTPUT);
 }
 
 void readCCD(void)
 {
   uint16_t result;
-  BITCLR(ICG);
+  BITCLR_ICG;
   delayMicroseconds(1);
-  BITSET(SH);  
+  BITSET_SH;  
   delayMicroseconds(5);
-  BITCLR(SH);
+  BITCLR_SH;
   delayMicroseconds(15);
-  BITSET(ICG);
+  BITSET_ICG;
   delayMicroseconds(1);
 
   // analogRead() preparation work
-  adc_dev *a_dev = PIN_MAP[ADC_PIN].adc_device;
-  adc_reg_map *adc_regs = a_dev->regs;
-  adc_set_reg_seqlen(a_dev, 1);
-  adc_regs->SQR3 = PIN_MAP[ADC_PIN].adc_channel;
+  // adc_dev *a_dev = PIN_MAP[ADC_PIN].adc_device;
+  // adc_reg_map *adc_regs = a_dev->regs;
+  // adc_set_reg_seqlen(a_dev, 1);
+  // adc_regs->SQR3 = PIN_MAP[ADC_PIN].adc_channel;
 
   for (int x = 0; x < PIXEL_COUNT; x++)
   {
-    BITSET(SH);
+    BITSET_SH;
 
+    result = analogRead(ADC_PIN);
     //result = (uint8_t)(analogRead(PA7) >> 2);   
-	  adc_regs->CR2 |= ADC_CR2_SWSTART;
-	  while (!(adc_regs->SR & ADC_SR_EOC))
-            ;
-	  result = (uint16_t)(adc_regs->DR & ADC_DR_DATA);
-
-    // if (x == 0)
-    // {
-    //   avg = result;
-    // }
-    // else
-    // {
-    //   // TODO data is inverted when we connect ADC directly
-    //   if (result > avg)
-    //   {
-    //     result = 0;
-    //   }
-    //   else
-    //   {
-    //     result += avg;
-    //   }
-    // }
+	  // adc_regs->CR2 |= ADC_CR2_SWSTART;
+	  // while (!(adc_regs->SR & ADC_SR_EOC))
+    //         ;
+	  // result = (uint16_t)(adc_regs->DR & ADC_DR_DATA);
 
     buffer[x] = result;
     delayMicroseconds(5);
 
-    BITCLR(SH);
+    BITCLR_SH;
   }
 }
 
