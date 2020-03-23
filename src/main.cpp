@@ -40,6 +40,7 @@ void setup()
 
   uint32_t channel = STM_PIN_CHANNEL(pinmap_function(p, PinMap_PWM));
 
+  HT->setPrescaleFactor(1);
   HT->setMode(channel, TIMER_OUTPUT_COMPARE_PWM1, p);
   HT->setOverflow(100, TICK_FORMAT);
   HT->setCaptureCompare(channel, 50, TICK_COMPARE_FORMAT);
