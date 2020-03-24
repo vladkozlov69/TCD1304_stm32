@@ -18,6 +18,9 @@ uint16_t avg = 0;
 int exposureTime = 10
 ;
 
+// TODO for F103
+#define ADC_STAB_DELAY_US 10
+
 ADC_HandleTypeDef AdcHandle = {};
 ADC_ChannelConfTypeDef  AdcChannelConf = {};
 
@@ -207,9 +210,12 @@ void setup()
   pinMode(PC14, OUTPUT);
   pinMode(PC15, OUTPUT);
 
+  //analogRead(ADC_PIN);
+
   PinName adcPin = analogInputToPinName(ADC_PIN);
 
-  uint32_t samplingTime = ADC_SAMPLETIME_15CYCLES;
+    // TODO add conditional define for F1/F4(ADC_SAMPLETIME_15CYCLES)
+  uint32_t samplingTime = ADC_SAMPLETIME_13CYCLES_5;
   uint32_t adcChannel = 0;
 
   if (adcPin & PADC_BASE) {
@@ -224,7 +230,8 @@ void setup()
 #endif
 #endif
     adcChannel = get_adc_internal_channel(adcPin);
-    samplingTime = ADC_SAMPLETIME_15CYCLES;
+    // TODO add conditional define for F1/F4(ADC_SAMPLETIME_15CYCLES)
+    samplingTime = ADC_SAMPLETIME_7CYCLES_5;
   } else {
     AdcHandle.Instance = (ADC_TypeDef *)pinmap_peripheral(adcPin, PinMap_ADC);
     adcChannel = get_adc_channel(adcPin);
@@ -319,6 +326,7 @@ void setup()
   // g_current_pin = pin; /* Needed for HAL_ADC_MspInit*/
 
   if (HAL_ADC_Init(&AdcHandle) != HAL_OK) {
+    Serial.println("i");
     return;
   }
 
@@ -331,9 +339,10 @@ void setup()
 #else
   if (!IS_ADC_CHANNEL(AdcChannelConf.Channel)) {
 #endif /* STM32L4xx || STM32WBxx */
+    Serial.println("c");
     return;
   }
-  ///AdcChannelConf.Rank         = ADC_REGULAR_RANK_1;               /* Specifies the rank in the regular group sequencer */
+  AdcChannelConf.Rank         = ADC_REGULAR_RANK_1;               /* Specifies the rank in the regular group sequencer */
 #if !defined(STM32L0xx)
 #if !defined(STM32G0xx)
   AdcChannelConf.SamplingTime = samplingTime;                     /* Sampling time value to be set for the selected channel */
@@ -361,6 +370,7 @@ void setup()
   /*##-2- Configure ADC regular channel ######################################*/
   if (HAL_ADC_ConfigChannel(&AdcHandle, &AdcChannelConf) != HAL_OK) {
     /* Channel Configuration Error */
+    Serial.println("c");
     return;
   }
 
@@ -378,6 +388,7 @@ void setup()
 #endif
   {
     /* ADC Calibration Error */
+    Serial.println("c");
     return;
   }
 #endif
@@ -476,15 +487,21 @@ void loop()
     }
   }
 
-  // Configure the sampling time to 640.5 cycles.
+    // calibrate for F103 ??? TODO really need?done above...
+  ADC1->CR2 |= ADC_CR2_RSTCAL; //Initialize calibration register
+  while ((ADC1->CR2 >> ADC_CR2_RSTCAL_Pos) & 0x1UL); //Wait until calibration register is initialized
+  ADC1->CR2 |= ADC_CR2_CAL; //Enable calibration
+  while ((ADC1->CR2 >> ADC_CR2_CAL_Pos) & 0x1UL); //Wait until calibration completed
+
+  // //Configure the sampling time to 640.5 cycles.
   // uint32_t adc_smpr1_val = 0, adc_smpr2_val = 0;
   // for (int i = 0; i < 10; i++) {
   //   if (i < 8) {
   //     /* ADC_SMPR1 determines sample time for channels [10,17] */
-  //     adc_smpr1_val |= ADC_SAMPLETIME_15CYCLES << (i * 3);
+  //     adc_smpr1_val |= ADC_SAMPLETIME_7CYCLES_5 << (i * 3);
   //   }
   //   /* ADC_SMPR2 determines sample time for channels [0,9] */
-  //   adc_smpr2_val |= ADC_SAMPLETIME_15CYCLES << (i * 3);
+  //   adc_smpr2_val |= ADC_SAMPLETIME_7CYCLES_5 << (i * 3);
   // }
 
   // ADC1->SMPR1 = adc_smpr1_val;
@@ -507,14 +524,20 @@ void loop()
   for (int cnt = 0; cnt < 1000; cnt++)
   {
     BITSET_SH;
-  	AdcHandle.Instance->CR2 |= ADC_CR2_SWSTART;
 
-    // if (HAL_ADC_PollForConversion(&AdcHandle, 10) != HAL_OK) {
-    //   /* End Of Conversion flag not set on time */
-    //   return;
-    // }
-	  while (!(AdcHandle.Instance->SR & ADC_SR_EOC))
-            ;
+  // TODO on that IF use ADC_CR2_SWSTART | ADC_CR2_EXTTRIG, else ADC_CR2_SWSTART
+    //     if (ADC_IS_SOFTWARE_START_REGULAR(hadc)      &&
+    //     ADC_NONMULTIMODE_OR_MULTIMODEMASTER(hadc)  )
+    // {
+  	AdcHandle.Instance->CR2 |= (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG);
+
+    if (HAL_ADC_PollForConversion(&AdcHandle, 10) != HAL_OK) {
+      /* End Of Conversion flag not set on time */
+      Serial.println("p");
+      return;
+    }
+	  // while (!(AdcHandle.Instance->SR & ADC_SR_EOC))
+    //         ;
 	  uhADCxConvertedValue = (uint16_t)(AdcHandle.Instance->DR & ADC_DR_DATA);
     BITCLR_SH;
 
