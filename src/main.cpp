@@ -209,7 +209,7 @@ void setup()
 
   PinName adcPin = analogInputToPinName(ADC_PIN);
 
-  uint32_t samplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  uint32_t samplingTime = ADC_SAMPLETIME_3CYCLES;
   uint32_t adcChannel = 0;
 
   if (adcPin & PADC_BASE) {
@@ -224,7 +224,7 @@ void setup()
 #endif
 #endif
     adcChannel = get_adc_internal_channel(adcPin);
-    samplingTime = ADC_SAMPLETIME_1CYCLE_5;
+    samplingTime = ADC_SAMPLETIME_3CYCLES;
   } else {
     AdcHandle.Instance = (ADC_TypeDef *)pinmap_peripheral(adcPin, PinMap_ADC);
     adcChannel = get_adc_channel(adcPin);
@@ -333,7 +333,7 @@ void setup()
 #endif /* STM32L4xx || STM32WBxx */
     return;
   }
-  AdcChannelConf.Rank         = ADC_REGULAR_RANK_1;               /* Specifies the rank in the regular group sequencer */
+  ///AdcChannelConf.Rank         = ADC_REGULAR_RANK_1;               /* Specifies the rank in the regular group sequencer */
 #if !defined(STM32L0xx)
 #if !defined(STM32G0xx)
   AdcChannelConf.SamplingTime = samplingTime;                     /* Sampling time value to be set for the selected channel */
@@ -440,46 +440,81 @@ void loop()
   // readCCD();
   //delay(exposureTime);
 
-      BITSET_SH;
+      
 
 
 
 
   __IO uint16_t uhADCxConvertedValue = 0;
   /*##-3- Start the conversion process ####################*/
-  if (HAL_ADC_Start(&AdcHandle) != HAL_OK) {
-    /* Start Conversation Error */
-    return;
-  }
-
-  /*##-4- Wait for the end of conversion #####################################*/
-  /*  For simplicity reasons, this example is just waiting till the end of the
-      conversion, but application may perform other tasks while conversion
-      operation is ongoing. */
-  if (HAL_ADC_PollForConversion(&AdcHandle, 10) != HAL_OK) {
-    /* End Of Conversion flag not set on time */
-    return;
-  }
-
-  /* Check if the continous conversion of regular channel is finished */
-  if ((HAL_ADC_GetState(&AdcHandle) & HAL_ADC_STATE_REG_EOC) == HAL_ADC_STATE_REG_EOC) {
-    /*##-5- Get the converted value of regular channel  ########################*/
-    uhADCxConvertedValue = HAL_ADC_GetValue(&AdcHandle);
-  }
-
-  if (HAL_ADC_Stop(&AdcHandle) != HAL_OK) {
-    /* Stop Conversation Error */
-    return;
-  }
-
-  // if (HAL_ADC_DeInit(&AdcHandle) != HAL_OK) {
+  // if (HAL_ADC_Start(&AdcHandle) != HAL_OK) {
+  //   /* Start Conversation Error */
   //   return;
   // }
+  // analogRead(ADC_PIN);
 
-  // LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(AdcHandle.Instance), LL_ADC_PATH_INTERNAL_NONE);
+  __IO uint32_t counter = 0U;
 
-  // return uhADCxConvertedValue;
 
-    //uint16_t result = analogRead(ADC_PIN);
+  uint32_t cr2 = ADC1->CR2;
+  cr2 &= ~ADC_CR2_EXTSEL;
+  cr2 |= ADC_CR2_SWSTART;
+  cr2 |= (1 << 20);
+  ADC1->CR2 = cr2;
+
+  if((AdcHandle.Instance->CR2 & ADC_CR2_ADON) != ADC_CR2_ADON)
+  {
+    /* Enable the Peripheral */
+    __HAL_ADC_ENABLE(&AdcHandle);
+
+    /* Delay for ADC stabilization time */
+    /* Compute number of CPU cycles to wait for */
+    counter = (ADC_STAB_DELAY_US * (SystemCoreClock / 1000000U));
+    while(counter != 0U)
+    {
+      counter--;
+    }
+  }
+
+    // set ADC1 sample rate ADC_SMPR_7_5
+  uint32_t adc_smpr1_val = 0, adc_smpr2_val = 0;
+  for (int i = 0; i < 10; i++) {
+    if (i < 8) {
+      /* ADC_SMPR1 determines sample time for channels [10,17] */
+      adc_smpr1_val |= ADC_SAMPLETIME_15CYCLES << (i * 3);
+    }
+    /* ADC_SMPR2 determines sample time for channels [0,9] */
+    adc_smpr2_val |= ADC_SAMPLETIME_15CYCLES << (i * 3);
+  }
+
+  // ADC1->SMPR1 = adc_smpr1_val;
+  // ADC1->SMPR2 = adc_smpr2_val;
+
+  // First, set the number of channels to read during each sequence.
+// (# of channels = L + 1, so set L to 0)
+ADC1->SQR1  &= ~( ADC_SQR1_L );
+// Configure the first (and only) step in the sequence to read channel 6.
+ADC1->SQR1  &= ~( 0x1F << 7 );
+ADC1->SQR1  |=  ( 7 << 6 );
+// Configure the sampling time to 640.5 cycles.
+ADC1->SMPR1 &= ~( 0x7 << ( 6 * 3 ) );
+ADC1->SMPR1 |=  ( 0x7 << ( 6 * 3 ) );
+
+   ADC1->SQR3 = 7;
+
+  for (int cnt = 0; cnt < 1000; cnt++)
+  {
+    BITSET_SH;
+  	AdcHandle.Instance->CR2 |= ADC_CR2_SWSTART;
+
+    if (HAL_ADC_PollForConversion(&AdcHandle, 10) != HAL_OK) {
+      /* End Of Conversion flag not set on time */
+      return;
+    }
+	  // while (!(AdcHandle.Instance->SR & ADC_SR_EOC))
+    //         ;
+	  uhADCxConvertedValue = (uint16_t)(AdcHandle.Instance->DR & ADC_DR_DATA);
     BITCLR_SH;
+
+  } 
 }
