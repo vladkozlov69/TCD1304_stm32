@@ -502,6 +502,8 @@ ADC1->SMPR1 |=  ( 0x7 << ( 6 * 3 ) );
 
    ADC1->SQR3 = 7;
 
+  uint32_t started = micros();
+
   for (int cnt = 0; cnt < 1000; cnt++)
   {
     BITSET_SH;
@@ -517,4 +519,9 @@ ADC1->SMPR1 |=  ( 0x7 << ( 6 * 3 ) );
     BITCLR_SH;
 
   } 
+
+  uint32_t ended = micros() - started;
+
+  if (Serial)
+    Serial.println(ended);
 }
