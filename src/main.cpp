@@ -16,7 +16,7 @@
 // Full frame, including dark pixels
 // and dead pixels.
 #define PIXEL_COUNT 3691
-#define CPU_CLOCK_FREQ 72000000UL;
+#define CPU_CLOCK_FREQ F_CPU
 
 uint16_t buffer[PIXEL_COUNT];
 uint16_t buffer2[85];
@@ -29,14 +29,16 @@ uint32_t measureAdcSpeed();
 
 void setup()
 {
+    pinMode(PC13, OUTPUT);
+    pinMode(PC14, OUTPUT);
+    pinMode(PC15, OUTPUT);
     pinMode(CLK_PIN, OUTPUT);
     pinMode(ADC_PIN, INPUT_ANALOG);
 
     fastADC.begin();
     // measure ADC speed
     uint32_t adcFreq = measureAdcSpeed();
-    uint32_t ovfCounter = CPU_CLOCK_FREQ; 
-    ovfCounter = ovfCounter / adcFreq / 4;
+    uint32_t ovfCounter = F_CPU / adcFreq / 4;
 
     PinName clkPin = digitalPinToPinName(CLK_PIN);
 
@@ -57,22 +59,23 @@ void setup()
     HT->setOverflow(ovfCounter, TICK_FORMAT);
     HT->setCaptureCompare(clkChannel, ovfCounter/2, TICK_COMPARE_FORMAT);
     HT->resume();
-
-    pinMode(PC13, OUTPUT);
-    pinMode(PC14, OUTPUT);
-    pinMode(PC15, OUTPUT);
 }
+
+void readCCDInternal(int pixelsToRead)
+{
+    for (int x = 0; x < pixelsToRead; x++)
+    {
+        BITSET_SH;
+        buffer[x] = fastADC.read();
+        BITCLR_SH;
+    }    
+}
+
 
 uint32_t measureAdcSpeed()
 {
     uint32_t started = micros();
-    volatile int result;
-
-    for (int x = 0; x < 1000; x++)
-    {
-        result = fastADC.read();
-    }
-
+    readCCDInternal(1000);
     uint32_t timed = micros() - started;
 
     return 1000000UL / timed * 1000;
@@ -80,7 +83,6 @@ uint32_t measureAdcSpeed()
 
 void readCCD(void)
 {
-    uint16_t result;
     BITCLR_ICG;
     delayMicroseconds(1);
     BITSET_SH;  
@@ -91,17 +93,7 @@ void readCCD(void)
     delayMicroseconds(1);
 
     BITSET_ADC_READ;
-    for (int x = 0; x < PIXEL_COUNT; x++)
-    {
-        BITSET_SH;
-
-        result = fastADC.read();
-
-        buffer[x] = result;
-
-        BITCLR_SH;
-    }
-
+    readCCDInternal(PIXEL_COUNT);
     BITCLR_ADC_READ;
 }
 
