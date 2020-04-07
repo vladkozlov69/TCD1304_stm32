@@ -1,16 +1,32 @@
 #include <Arduino.h>
 #include "FastADC.h"
 
-#define BITSET_SH (GPIOC->BSRR = GPIO_BSRR_BS15);
-#define BITCLR_SH (GPIOC->BSRR = GPIO_BSRR_BR15);
-#define BITSET_ICG (GPIOC->BSRR = GPIO_BSRR_BS14);
-#define BITCLR_ICG (GPIOC->BSRR = GPIO_BSRR_BR14);
+#if defined(STM32F407xx)
+    #define ADC_PIN PC3
+    #define SH_PIN PE15
+    #define ICG_PIN PE14
+    #define ADC_FLAG_PIN PE13
+    #define BITSET_SH (GPIOE->BSRR = GPIO_BSRR_BS15);
+    #define BITCLR_SH (GPIOE->BSRR = GPIO_BSRR_BR15);
+    #define BITSET_ICG (GPIOE->BSRR = GPIO_BSRR_BS14);
+    #define BITCLR_ICG (GPIOE->BSRR = GPIO_BSRR_BR14);
+    // just to use as a sync/marker for oscilloscope
+    #define BITSET_ADC_READ (GPIOE->BSRR = GPIO_BSRR_BS13);
+    #define BITCLR_ADC_READ (GPIOE->BSRR = GPIO_BSRR_BR13);
+#else
+    #define ADC_PIN PA7
+    #define SH_PIN PC15
+    #define ICG_PIN PC14
+    #define ADC_FLAG_PIN PC13
+    #define BITSET_SH (GPIOC->BSRR = GPIO_BSRR_BS15);
+    #define BITCLR_SH (GPIOC->BSRR = GPIO_BSRR_BR15);
+    #define BITSET_ICG (GPIOC->BSRR = GPIO_BSRR_BS14);
+    #define BITCLR_ICG (GPIOC->BSRR = GPIO_BSRR_BR14);
+    // just to use as a sync/marker for oscilloscope
+    #define BITSET_ADC_READ (GPIOC->BSRR = GPIO_BSRR_BS13);
+    #define BITCLR_ADC_READ (GPIOC->BSRR = GPIO_BSRR_BR13);
+#endif
 
-// just to use as a sync/marker for oscilloscope
-#define BITSET_ADC_READ (GPIOC->BSRR = GPIO_BSRR_BS13);
-#define BITCLR_ADC_READ (GPIOC->BSRR = GPIO_BSRR_BR13);
-
-#define ADC_PIN PA7
 #define CLK_PIN PA8
 
 // Full frame, including dark pixels
@@ -29,9 +45,9 @@ uint32_t measureAdcSpeed();
 
 void setup()
 {
-    pinMode(PC13, OUTPUT);
-    pinMode(PC14, OUTPUT);
-    pinMode(PC15, OUTPUT);
+    pinMode(SH_PIN, OUTPUT);
+    pinMode(ICG_PIN, OUTPUT);
+    pinMode(ADC_FLAG_PIN, OUTPUT);
     pinMode(CLK_PIN, OUTPUT);
     pinMode(ADC_PIN, INPUT_ANALOG);
 
